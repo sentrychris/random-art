@@ -30,7 +30,7 @@ function prefersReducedMotion() {
         const font = `${style.fontWeight} 14px / ${style.lineHeight} ${style.fontFamily}`;
         ctx.font = font;
         ctx.textBaseline = 'alphabetic';
-        ctx.textAlign = 'left';
+        ctx.textAlign = 'center';
 
         // Use a digit for width; better match for 0/1 glyphs than 'M'
         const m0 = ctx.measureText('0');
