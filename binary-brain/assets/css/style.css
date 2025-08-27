@@ -20,9 +20,16 @@ body {
     opacity: 0.8;
 }
 
+
+video {
+    filter: grayscale(1);
+    opacity: 1;
+}
+
 #app {
-    opacity: 0.8;
-    animation: hue-spin 10s linear infinite;
+    opacity: 0.6;
+    filter: grayscale(1);
+    /* animation: hue-spin 10s linear infinite; */
 }
 
 @keyframes hue-spin {

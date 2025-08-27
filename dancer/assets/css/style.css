@@ -27,7 +27,7 @@ video {
 }
 
 #app {
-    opacity: 0.5;
+    opacity: 0.6;
     filter: grayscale(1);
     /* animation: hue-spin 10s linear infinite; */
 }

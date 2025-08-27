@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>DS1</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="./assets/css/style.css" />
+    <script async src="https://ga.jspm.io/npm:es-module-shims@1.10.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+    <section class="vh-100 py-0 py-md-5 text-light text-center position-relative">
+        <video autoplay muted loop playsinline class="w-100 h-100 position-absolute top-0 start-0" style="object-fit:cover;z-index:1;">
+            <source src="assets/street.mp4" type="video/mp4" />
+            Your browser does not support the video tag.
+        </video>
+        <div id="app" class="w-100 h-100 position-absolute top-0 start-0" style="z-index:2;"></div>
+    </section>
+    
+    <audio id="bgmusic" src="./assets/song.mp3" autoplay loop></audio>
+    
+    <!-- Unmute audio on first interaction (mobile autoplay policies) -->
+    <script>
+        document.addEventListener(
+        "click",
+        () => {
+            const audio = document.getElementById("bgmusic");
+            audio.muted = false;
+            audio.play();
+        },
+        { once: true }
+        );
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="./assets/js/animation.js"></script>
+    
+    <script type="module">
+        import * as THREE from "three";
+        import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+        import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+        import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+        import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+        import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+        import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+        
+        let camera, scene, composer, renderer, mixer, clock, model, dirLight;
+        let helpers = { enabled: false, lightHelper: null, camHelper: null };
+        const USE_VISIBLE_FLOOR_FOR_DEBUG = false; // set true if you want to see lighting on the floor
+        
+        const params = { threshold: 0.055, strength: 1.0, radius: 1.0, exposure: 1.0 };
+        
+        init();
+        
+        async function init() {
+            const container = document.getElementById("app");
+            clock = new THREE.Clock();
+            
+            scene = new THREE.Scene();
+            
+            // Camera
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(-20, 0);
+            scene.add(camera);
+            
+            // Keep ambient modest so shadows read
+            scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+            
+            // Renderer (transparent over video) + shadows
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setClearAlpha(0);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            renderer.toneMapping = THREE.ReinhardToneMapping;
+            renderer.toneMappingExposure = params.exposure;
+            container.appendChild(renderer.domElement);
+            
+            // Post FX
+            const renderPass = new RenderPass(scene, camera);
+            // Ensure we don’t paint an opaque background over the video
+            // (RenderPass doesn’t clear alpha by default; we keep renderer alpha=0)
+            const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+            bloomPass.threshold = params.threshold;
+            bloomPass.strength = params.strength;
+            bloomPass.radius = params.radius;
+            
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderPass);
+            composer.addPass(bloomPass);
+            composer.addPass(new OutputPass());
+            
+            // Controls disabled
+            const controls = new OrbitControls(camera, renderer.domElement);
+            controls.enabled = false;
+            
+            // Floor: either shadow-only or visible for debugging
+            let floorMat;
+            if (USE_VISIBLE_FLOOR_FOR_DEBUG) {
+                floorMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 1, metalness: 0 });
+            } else {
+                floorMat = new THREE.ShadowMaterial({ opacity: 0.65 });
+            }
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.y = -20;
+            floor.receiveShadow = true;
+            scene.add(floor);
+            
+            // Load model
+            const gltf = await new GLTFLoader().loadAsync("assets/sofia.glb");
+            model = gltf.scene;
+            
+            model.traverse((o) => {
+                if (o.isMesh) {
+                    o.castShadow = true;
+                    // If the asset has MeshBasicMaterial (unlit), swap so it participates in lighting
+                    if (o.material && o.material.isMeshBasicMaterial) {
+                        o.material = new THREE.MeshStandardMaterial({ map: o.material.map ?? null, color: o.material.color ?? 0xffffff });
+                    }
+                }
+            });
+            
+            // Snap feet to y=0
+            const box = new THREE.Box3().setFromObject(model);
+            model.position.y -= box.min.y;
+            scene.add(model);
+            
+            // Animation
+            mixer = new THREE.AnimationMixer(model);
+            if (gltf.animations?.length) mixer.clipAction(gltf.animations[0].optimize()).play();
+            
+            // Directional light (white, above and behind), aimed at the model so the shadow projects forward from the feet
+            dirLight = new THREE.DirectionalLight(0xcccccc, 2.8);
+            dirLight.position.set(-10, 0); // adjust z more negative to push shadow further forward
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.set(2048, 2048);
+            dirLight.shadow.camera.near = 0.1;
+            dirLight.shadow.camera.far = 10;
+            dirLight.shadow.camera.left = -3.0;
+            dirLight.shadow.camera.right = 3.0;
+            dirLight.shadow.camera.top = 4.0;
+            dirLight.shadow.camera.bottom = -1.0;
+            dirLight.shadow.bias = -0.0005;
+            dirLight.shadow.normalBias = 0.02;
+            
+            // Aim at the model (hips/root). Important: add target to scene.
+            dirLight.target = model;
+            scene.add(dirLight);
+            scene.add(dirLight.target);
+            
+            // DEBUG helpers toggle (press "H")
+            window.addEventListener("keydown", (e) => {
+                if (e.key.toLowerCase() === "h") toggleHelpers();
+            });
+            
+            window.addEventListener("resize", onWindowResize);
+            renderer.setAnimationLoop(animate);
+        }
+        
+        function toggleHelpers() {
+            helpers.enabled = !helpers.enabled;
+            
+            if (helpers.enabled) {
+                helpers.lightHelper = new THREE.DirectionalLightHelper(dirLight, 0.5);
+                helpers.camHelper = new THREE.CameraHelper(dirLight.shadow.camera);
+                scene.add(helpers.lightHelper);
+                scene.add(helpers.camHelper);
+            } else {
+                if (helpers.lightHelper) scene.remove(helpers.lightHelper);
+                if (helpers.camHelper) scene.remove(helpers.camHelper);
+                helpers.lightHelper = null;
+                helpers.camHelper = null;
+            }
+        }
+        
+        function onWindowResize() {
+            const w = window.innerWidth, h = window.innerHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+            composer.setSize(w, h);
+        }
+        
+        function animate() {
+            const dt = clock.getDelta();
+            if (mixer) mixer.update(dt);
+            if (helpers.enabled) {
+                helpers.lightHelper.update();
+                helpers.camHelper.update();
+            }
+            composer.render();
+        }
+    </script>
+    
+</body>
+</html>
