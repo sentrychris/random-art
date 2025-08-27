@@ -14,7 +14,7 @@ body {
     width: 100vw;
     height: 100%;
     background: black;
-    opacity: 0.5;
+    opacity: 0.3;
 }
 
 #static-alpha-grid {
@@ -27,11 +27,11 @@ body {
     transform: translateX(-50%);
     overflow: hidden;
     max-height: 100%;
-    opacity: 0.5;
+    opacity: 0.8;
 }
 
 #app {
-    opacity: 0.5;
+    opacity: 0.8;
     animation: hue-spin 10s linear infinite;
 }
 
