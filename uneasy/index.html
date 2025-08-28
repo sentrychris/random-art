@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>DS1</title>    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="./assets/css/style.css">
+    <script async src="https://ga.jspm.io/npm:es-module-shims@1.10.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>    
+    <section class="vh-100 py-0 py-md-5 text-light text-center position-relative">
+        <div id="app" class="w-100 h-100 z-3" style="position: absolute;top: 0;right: 0;"></div>
+        <div id="static-alpha-grid">
+            <canvas class="binary-canvas"></canvas>
+        </div>
+    </section>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="./assets/js/animation.js"></script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+        let camera;
+        let composer, renderer, mixer, clock;
+
+        const params = {
+            threshold: 1,
+            strength: 0.5,
+            radius: 0.1,
+            exposure: 0
+        };
+
+        init();
+
+        async function init() {
+            const container = document.getElementById( 'app' );
+            clock = new THREE.Clock();
+
+            const scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera( 80, window.innerWidth / window.innerHeight, 1, 100 );
+            camera.position.set( -20, 1, - 3.5 );
+            scene.add( camera );
+            scene.add( new THREE.AmbientLight( 0xcccccc ) );
+
+            const pointLight = new THREE.PointLight( 0xffffff, 100 );
+            camera.add( pointLight );
+            const loader = new GLTFLoader();
+            // const gltf = await loader.loadAsync( '../models/galaxy.glb' );
+            // const model = gltf.scene;
+            // scene.add( model );
+
+            // mixer = new THREE.AnimationMixer( model );
+            // const clip = gltf.animations[ 0 ];
+            // mixer.clipAction( clip.optimize() ).play();
+
+            renderer = new THREE.WebGLRenderer( { antialias: true } );
+            renderer.setPixelRatio( window.devicePixelRatio );
+            renderer.setSize( window.innerWidth, window.innerHeight );
+            renderer.setAnimationLoop( animate );
+            renderer.toneMapping = THREE.ReinhardToneMapping;
+            container.appendChild( renderer.domElement );
+
+            const renderScene = new RenderPass( scene, camera );
+            const bloomPass = new UnrealBloomPass( new THREE.Vector2( window.innerWidth, window.innerHeight ), 1.5, 0.4, 0.85 );
+            bloomPass.threshold = params.threshold;
+            bloomPass.strength = params.strength;
+            bloomPass.radius = params.radius;
+
+            const outputPass = new OutputPass();
+            composer = new EffectComposer( renderer );
+            composer.addPass( renderScene );
+            composer.addPass( bloomPass );
+            composer.addPass( outputPass );
+
+            const controls = new OrbitControls( camera, renderer.domElement );
+            controls.maxPolarAngle = Math.PI * 0.5;
+            controls.minDistance = 1;
+            controls.maxDistance = 8;
+            window.addEventListener( 'resize', onWindowResize );
+        }
+
+        function onWindowResize() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize( width, height );
+            composer.setSize( width, height );
+        }
+
+        function animate() {
+            const delta = clock.getDelta();
+            mixer.update( delta );
+            composer.render();
+        }
+    </script>
+</body>
+</html>
