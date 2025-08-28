@@ -118,7 +118,7 @@
             scene.add(floor);
             
             // Load model
-            const gltf = await new GLTFLoader().loadAsync("assets/sofia.glb");
+            const gltf = await new GLTFLoader().loadAsync("../models/sofia.glb");
             model = gltf.scene;
             
             model.traverse((o) => {

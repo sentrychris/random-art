@@ -60,7 +60,7 @@
             const pointLight = new THREE.PointLight( 0xffffff, 100 );
             camera.add( pointLight );
             const loader = new GLTFLoader();
-            const gltf = await loader.loadAsync( 'assets/brain.glb' );
+            const gltf = await loader.loadAsync( '../models/brain.glb' );
             const model = gltf.scene;
             scene.add( model );
 
